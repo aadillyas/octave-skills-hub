@@ -1,0 +1,106 @@
+.discover-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.discover-search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-active);
+  border-radius: 10px;
+  padding: 0 16px;
+  margin-bottom: 32px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.discover-search-bar:focus-within {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px var(--pink-light);
+}
+
+.search-icon {
+  font-size: 1rem;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 14px 12px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.search-input::placeholder {
+  color: var(--dim);
+}
+
+.search-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.search-clear:hover {
+  color: var(--text);
+}
+
+.discover-count {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+  font-family: var(--font-head);
+  font-weight: 500;
+}
+
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.skills-grid .skill-card {
+  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.discover-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.discover-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px;
+  background: #fff5f5;
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.discover-error strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #dc2626;
+}
+
+.discover-error p {
+  color: var(--muted);
+}
