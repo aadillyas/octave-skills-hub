@@ -10,7 +10,16 @@ const { queries } = require("./database");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: "http://localhost:5173" }));
+// Allow localhost for dev and any Vercel deployment for prod
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || origin.includes("localhost") || origin.includes("vercel.app") || origin.includes(process.env.FRONTEND_URL || "")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  }
+}));
 app.use(express.json());
 
 const UPLOADS_DIR = path.join(__dirname, "uploads");
@@ -29,11 +38,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const validExt = file.originalname.endsWith(".md") || file.originalname.endsWith(".skill");
     const validMime = ["text/markdown", "text/plain", "application/octet-stream"].includes(file.mimetype);
-    if (validExt || validMime) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only .md and .skill files are allowed"), false);
-    }
+    if (validExt || validMime) { cb(null, true); } else { cb(new Error("Only .md and .skill files are allowed"), false); }
   },
   limits: { fileSize: 5 * 1024 * 1024 },
 });
@@ -44,32 +49,23 @@ function getGeminiClient() {
   return new GoogleGenerativeAI(apiKey);
 }
 
-// GET all skills
 app.get("/api/skills", (req, res) => {
   try {
     const { q } = req.query;
-    let skills = q && q.trim()
-      ? queries.searchSkills.all(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`)
-      : queries.getAllSkills.all();
+    let skills = q && q.trim() ? queries.searchSkills.all(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`) : queries.getAllSkills.all();
     skills = skills.map((s) => ({ ...s, tags: JSON.parse(s.tags) }));
     res.json({ skills });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch skills" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to fetch skills" }); }
 });
 
-// GET single skill
 app.get("/api/skills/:id", (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
     if (!skill) return res.status(404).json({ error: "Skill not found" });
     res.json({ ...skill, tags: JSON.parse(skill.tags) });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch skill" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to fetch skill" }); }
 });
 
-// GET download
 app.get("/api/skills/:id/download", (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
@@ -78,35 +74,21 @@ app.get("/api/skills/:id/download", (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${skill.filename}"`);
     res.setHeader("Content-Type", "text/markdown");
     res.send(skill.file_content);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to download skill" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to download skill" }); }
 });
 
-// POST upload skill
 app.post("/api/skills", upload.single("file"), (req, res) => {
   try {
     const { name, author, description, tags } = req.body;
-    if (!name || !author || !description || !tags || !req.file) {
-      return res.status(400).json({ error: "All fields and a .md or .skill file are required" });
-    }
+    if (!name || !author || !description || !tags || !req.file) return res.status(400).json({ error: "All fields and a .md or .skill file are required" });
     const fileContent = fs.readFileSync(req.file.path, "utf-8");
     let parsedTags;
-    try { parsedTags = JSON.parse(tags); }
-    catch { parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean); }
-
-    const result = queries.insertSkill.run({
-      name: name.trim(), author: author.trim(), description: description.trim(),
-      tags: JSON.stringify(parsedTags), filename: req.file.originalname,
-      file_path: req.file.path, file_content: fileContent,
-    });
+    try { parsedTags = JSON.parse(tags); } catch { parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean); }
+    const result = queries.insertSkill.run({ name: name.trim(), author: author.trim(), description: description.trim(), tags: JSON.stringify(parsedTags), filename: req.file.originalname, file_path: req.file.path, file_content: fileContent });
     res.status(201).json({ message: "Skill uploaded successfully", id: result.lastInsertRowid });
-  } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to upload skill" });
-  }
+  } catch (err) { res.status(500).json({ error: err.message || "Failed to upload skill" }); }
 });
 
-// DELETE skill
 app.delete("/api/skills/:id", (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
@@ -114,82 +96,31 @@ app.delete("/api/skills/:id", (req, res) => {
     if (fs.existsSync(skill.file_path)) fs.unlinkSync(skill.file_path);
     queries.deleteSkill.run(req.params.id);
     res.json({ message: "Skill deleted" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete skill" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to delete skill" }); }
 });
 
-// POST AI match
 app.post("/api/match", async (req, res) => {
   try {
     const { problem } = req.body;
     if (!problem?.trim()) return res.status(400).json({ error: "Problem description is required" });
-
     const skills = queries.getAllSkillsWithContent.all();
     if (skills.length === 0) return res.json({ matches: [], message: "No skills in the library yet." });
-
-    const skillsContext = skills.map((s) => `
-SKILL ID: ${s.id}
-NAME: ${s.name}
-AUTHOR: ${s.author}
-TAGS: ${JSON.parse(s.tags).join(", ")}
-DESCRIPTION: ${s.description}
-CONTENT PREVIEW:
-${s.file_content.slice(0, 800)}
----`).join("\n");
-
-    const prompt = `You are a skills recommendation engine for an organisation's internal AI skills library.
-
-A user has described their problem or task. Recommend the most relevant skills from the library below, ranked by relevance.
-
-USER PROBLEM:
-"${problem}"
-
-AVAILABLE SKILLS:
-${skillsContext}
-
-Respond with a JSON array of matches (maximum 5, minimum 1). Only include genuinely relevant skills.
-Each match must have:
-- id: the skill's integer ID
-- relevance_score: integer 1-10
-- reason: 1-2 sentence explanation of why this skill helps
-- how_to_use: 1 sentence on how to apply it
-- can_combine_with: array of other skill IDs from your results that work well together (empty array if none)
-
-Return ONLY valid JSON, no markdown, no extra text.`;
-
+    const skillsContext = skills.map((s) => `SKILL ID: ${s.id}\nNAME: ${s.name}\nAUTHOR: ${s.author}\nTAGS: ${JSON.parse(s.tags).join(", ")}\nDESCRIPTION: ${s.description}\nCONTENT PREVIEW:\n${s.file_content.slice(0, 800)}\n---`).join("\n");
+    const prompt = `You are a skills recommendation engine for an organisation's internal AI skills library.\n\nA user has described their problem or task. Recommend the most relevant skills from the library below, ranked by relevance.\n\nUSER PROBLEM:\n"${problem}"\n\nAVAILABLE SKILLS:\n${skillsContext}\n\nRespond with a JSON array of matches (maximum 5, minimum 1). Only include genuinely relevant skills.\nEach match must have:\n- id: the skill's integer ID\n- relevance_score: integer 1-10\n- reason: 1-2 sentence explanation\n- how_to_use: 1 sentence on how to apply it\n- can_combine_with: array of other skill IDs (empty array if none)\n\nReturn ONLY valid JSON, no markdown, no extra text.`;
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-
     let matches;
-    try {
-      matches = JSON.parse(text.replace(/```json|```/g, "").trim());
-    } catch {
-      return res.status(500).json({ error: "AI returned an unexpected format. Please try again." });
-    }
-
-    const enriched = matches
-      .map((match) => {
-        const skill = skills.find((s) => s.id === match.id);
-        if (!skill) return null;
-        return { ...match, name: skill.name, author: skill.author, tags: JSON.parse(skill.tags), description: skill.description };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.relevance_score - a.relevance_score);
-
+    try { matches = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { return res.status(500).json({ error: "AI returned an unexpected format. Please try again." }); }
+    const enriched = matches.map((match) => { const skill = skills.find((s) => s.id === match.id); if (!skill) return null; return { ...match, name: skill.name, author: skill.author, tags: JSON.parse(skill.tags), description: skill.description }; }).filter(Boolean).sort((a, b) => b.relevance_score - a.relevance_score);
     res.json({ matches: enriched });
   } catch (err) {
-    if (err.message?.includes("GEMINI_API_KEY")) {
-      return res.status(500).json({ error: "Gemini API key not configured. Check your .env file." });
-    }
+    if (err.message?.includes("GEMINI_API_KEY")) return res.status(500).json({ error: "Gemini API key not configured." });
     res.status(500).json({ error: "AI matching failed. Please try again." });
   }
 });
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
-app.listen(PORT, () => {
-  console.log(`\n✅ Skills Hub API running at http://localhost:${PORT}\n`);
-});
+app.listen(PORT, () => { console.log(`\n✅ Skills Hub API running at http://localhost:${PORT}\n`); });

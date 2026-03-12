@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import SkillCard from "../components/SkillCard";
 import "./Discover.css";
 
-const API = "http://localhost:3001";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export default function Discover() {
   const [skills, setSkills] = useState([]);
@@ -12,7 +12,6 @@ export default function Discover() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
@@ -45,13 +44,9 @@ export default function Discover() {
       <div className="discover-header page-header">
         <div>
           <h1 className="page-title">Skill Library</h1>
-          <p className="page-subtitle">
-            Browse and download skills built by your team
-          </p>
+          <p className="page-subtitle">Browse and download skills built by your team</p>
         </div>
-        <Link to="/upload" className="btn btn-primary">
-          + Upload a Skill
-        </Link>
+        <Link to="/upload" className="btn btn-primary">+ Upload a Skill</Link>
       </div>
 
       <div className="discover-search-bar">
@@ -64,9 +59,7 @@ export default function Discover() {
           onChange={(e) => setSearch(e.target.value)}
           autoFocus
         />
-        {search && (
-          <button className="search-clear" onClick={() => setSearch("")}>✕</button>
-        )}
+        {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
       </div>
 
       {loading && (
@@ -90,11 +83,7 @@ export default function Discover() {
         <div className="empty-state">
           <div className="empty-state-icon">⬡</div>
           <h3>{search ? "No skills match your search" : "No skills yet"}</h3>
-          <p>
-            {search
-              ? "Try different keywords or browse all skills."
-              : "Be the first to upload a skill to the library."}
-          </p>
+          <p>{search ? "Try different keywords or browse all skills." : "Be the first to upload a skill to the library."}</p>
           {!search && (
             <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>
               Upload the first skill
@@ -105,17 +94,10 @@ export default function Discover() {
 
       {!loading && !error && skills.length > 0 && (
         <>
-          <div className="discover-count">
-            {skills.length} skill{skills.length !== 1 ? "s" : ""}
-            {search && ` matching "${search}"`}
-          </div>
+          <div className="discover-count">{skills.length} skill{skills.length !== 1 ? "s" : ""}{search && ` matching "${search}"`}</div>
           <div className="skills-grid">
             {skills.map((skill, i) => (
-              <SkillCard
-                key={skill.id}
-                skill={skill}
-                style={{ animationDelay: `${i * 40}ms` }}
-              />
+              <SkillCard key={skill.id} skill={skill} style={{ animationDelay: `${i * 40}ms` }} />
             ))}
           </div>
         </>
