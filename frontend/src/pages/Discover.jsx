@@ -25,7 +25,7 @@ function QuickGuide() {
           <div className="quick-guide-steps">
             <div className="quick-guide-step">
               <span className="qg-num">1</span>
-              <div><strong>Find a skill</strong> — search by keyword, tag, or author. Or describe your problem in the AI bar below to get matched instantly.</div>
+              <div><strong>Find a skill</strong> — browse the library or use the AI bar at the bottom to describe your problem in plain English.</div>
             </div>
             <div className="quick-guide-step">
               <span className="qg-num">2</span>
@@ -80,7 +80,6 @@ function AIMatchBar({ allSkills }) {
   const [error, setError] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const inputRef = useRef();
-  const resultsRef = useRef();
 
   const handleMatch = async (text) => {
     const query = text || problem;
@@ -98,7 +97,6 @@ function AIMatchBar({ allSkills }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Matching failed");
       setMatches(data.matches || []);
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -128,98 +126,90 @@ function AIMatchBar({ allSkills }) {
   };
 
   return (
-    <div className="ai-match-bar">
-      <div className="ai-match-input-row">
-        <span className="ai-match-icon">✨</span>
-        <input
-          ref={inputRef}
-          type="text"
-          className="ai-match-input"
-          placeholder="Describe your task and I'll find the best skills… e.g. 'I need to pull data from PDFs into a report'"
-          value={problem}
-          onChange={e => setProblem(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        {problem && !loading && (
-          <button className="ai-match-clear" onClick={clear}>✕</button>
-        )}
-        <button
-          className="ai-match-btn"
-          onClick={() => handleMatch()}
-          disabled={loading || !problem.trim()}
-        >
-          {loading ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : "Match →"}
-        </button>
-      </div>
-
-      {!matches && !loading && !error && (
-        <div className="ai-match-examples">
-          {EXAMPLES.map(ex => (
-            <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>{ex}</button>
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div className="ai-match-error">
-          ⚠️ {error} — <button className="ai-retry" onClick={clear}>Try again</button>
-        </div>
-      )}
-
-      {matches && (
-        <div className="ai-match-results" ref={resultsRef}>
-          <div className="ai-match-results-header">
-            <span className="ai-match-results-label">
-              ✨ {matches.length} skill{matches.length !== 1 ? "s" : ""} matched for &quot;{problem}&quot;
-            </span>
-            <button className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "4px 10px" }} onClick={clear}>
-              Clear
-            </button>
-          </div>
-
-          {matches.length === 0 && (
-            <p className="ai-match-empty">No skills in the library match your description yet.</p>
+    <div className="ai-float-wrap">
+      {/* Results panel floats above the input bar */}
+      {(matches || loading || error) && (
+        <div className="ai-float-results">
+          {loading && (
+            <div className="ai-results-loading">
+              <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              <span>Finding the best skills for your task…</span>
+            </div>
           )}
-
-          <div className="ai-match-cards">
-            {matches.map((match, i) => (
-              <div
-                key={match.id}
-                className="ai-match-card"
-                style={{ animationDelay: `${i * 60}ms` }}
-                onClick={() => setSelectedSkill(match)}
-              >
-                <div className="ai-match-card-left">
-                  <div className="ai-score-badge" style={{ background: scoreBg(match.relevance_score), color: scoreColor(match.relevance_score) }}>
-                    {match.relevance_score}
-                  </div>
-                  <div>
-                    <div className="ai-match-card-name">
-                      {match.name}
-                      {match.verified === 1 && <span className="verified-badge" style={{ fontSize: "0.6rem" }}>✓</span>}
-                    </div>
-                    <div className="ai-match-card-reason">{match.reason}</div>
-                    {match.can_combine_with?.length > 0 && (
-                      <div className="ai-match-combines">
-                        💡 Pairs with: {match.can_combine_with.map(id => {
-                          const other = matches.find(m => m.id === id);
-                          return other ? <span key={id} className="tag tag-teal" style={{ fontSize: "0.7rem" }}>{other.name}</span> : null;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button
-                  className="btn btn-primary ai-match-dl"
-                  onClick={e => { e.stopPropagation(); window.location.href = `${API}/api/skills/${match.id}/download`; }}
-                >
-                  Download
-                </button>
+          {error && (
+            <div className="ai-match-error">
+              ⚠️ {error} — <button className="ai-retry" onClick={clear}>Try again</button>
+            </div>
+          )}
+          {matches && (
+            <>
+              <div className="ai-match-results-header">
+                <span className="ai-match-results-label">
+                  ✨ {matches.length} skill{matches.length !== 1 ? "s" : ""} matched for &quot;{problem}&quot;
+                </span>
+                <button className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "4px 10px" }} onClick={clear}>Clear</button>
               </div>
+              {matches.length === 0 && <p className="ai-match-empty">No skills match your description yet.</p>}
+              <div className="ai-match-cards">
+                {matches.map((match, i) => (
+                  <div key={match.id} className="ai-match-card" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setSelectedSkill(match)}>
+                    <div className="ai-match-card-left">
+                      <div className="ai-score-badge" style={{ background: scoreBg(match.relevance_score), color: scoreColor(match.relevance_score) }}>
+                        {match.relevance_score}
+                      </div>
+                      <div>
+                        <div className="ai-match-card-name">
+                          {match.name}
+                          {match.verified === 1 && <span className="verified-badge" style={{ fontSize: "0.6rem" }}>✓</span>}
+                        </div>
+                        <div className="ai-match-card-reason">{match.reason}</div>
+                        {match.can_combine_with?.length > 0 && (
+                          <div className="ai-match-combines">
+                            💡 Pairs with: {match.can_combine_with.map(id => {
+                              const other = matches.find(m => m.id === id);
+                              return other ? <span key={id} className="tag tag-teal" style={{ fontSize: "0.7rem" }}>{other.name}</span> : null;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button className="btn btn-primary ai-match-dl" onClick={e => { e.stopPropagation(); window.location.href = `${API}/api/skills/${match.id}/download`; }}>
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Floating input bar */}
+      <div className="ai-match-bar">
+        <div className="ai-match-input-row">
+          <span className="ai-match-icon">✨</span>
+          <input
+            ref={inputRef}
+            type="text"
+            className="ai-match-input"
+            placeholder="Describe your task and I'll find the best matching skills…"
+            value={problem}
+            onChange={e => setProblem(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          {problem && !loading && <button className="ai-match-clear" onClick={clear}>✕</button>}
+          <button className="ai-match-btn" onClick={() => handleMatch()} disabled={loading || !problem.trim()}>
+            {loading ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : "Match →"}
+          </button>
+        </div>
+        {!matches && !loading && !error && (
+          <div className="ai-match-examples">
+            {EXAMPLES.map(ex => (
+              <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>{ex}</button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {selectedSkill && (
         <SkillModal
@@ -237,23 +227,13 @@ export default function Discover() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState("all");
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      let url = debouncedSearch
-        ? `${API}/api/skills?q=${encodeURIComponent(debouncedSearch)}`
-        : `${API}/api/skills`;
-      if (filter === "verified") url += (url.includes("?") ? "&" : "?") + "verified=true";
+      const url = filter === "verified" ? `${API}/api/skills?verified=true` : `${API}/api/skills`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -263,14 +243,14 @@ export default function Discover() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, filter]);
+  }, [filter]);
 
   useEffect(() => { fetchSkills(); }, [fetchSkills]);
 
   const verifiedCount = skills.filter(s => s.verified === 1).length;
 
   return (
-    <div className="page">
+    <div className="page page-with-float">
       <div className="discover-header page-header">
         <div>
           <h1 className="page-title">Skill Library</h1>
@@ -280,20 +260,8 @@ export default function Discover() {
       </div>
 
       <QuickGuide />
-      <AIMatchBar allSkills={skills} />
 
       <div className="discover-controls">
-        <div className="discover-search-bar">
-          <span className="search-icon">🔍</span>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search by name, tag, or author…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
-        </div>
         <VerifiedToggle value={filter} onChange={setFilter} />
       </div>
 
@@ -309,9 +277,9 @@ export default function Discover() {
       {!loading && !error && skills.length === 0 && (
         <div className="empty-state">
           <div className="empty-state-icon">⬡</div>
-          <h3>{search ? "No skills match your search" : filter === "verified" ? "No verified skills yet" : "No skills yet"}</h3>
-          <p>{search ? "Try different keywords." : "Be the first to upload a skill."}</p>
-          {!search && <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>Upload the first skill</Link>}
+          <h3>{filter === "verified" ? "No verified skills yet" : "No skills yet"}</h3>
+          <p>Be the first to upload a skill.</p>
+          <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>Upload the first skill</Link>
         </div>
       )}
 
@@ -319,7 +287,6 @@ export default function Discover() {
         <>
           <div className="discover-count">
             {skills.length} skill{skills.length !== 1 ? "s" : ""}
-            {search && ` matching "${search}"`}
             {filter === "verified" && " · verified only"}
             {filter === "all" && verifiedCount > 0 && <span className="verified-count-hint"> · {verifiedCount} verified</span>}
           </div>
@@ -330,6 +297,9 @@ export default function Discover() {
           </div>
         </>
       )}
+
+      {/* Floating AI bar — fixed at bottom */}
+      <AIMatchBar allSkills={skills} />
     </div>
   );
 }
