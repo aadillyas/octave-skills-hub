@@ -89,7 +89,6 @@ function AIMatchBar({ allSkills }) {
     setLoading(true);
     setError(null);
     setMatches(null);
-
     try {
       const res = await fetch(`${API}/api/match`, {
         method: "POST",
@@ -99,7 +98,6 @@ function AIMatchBar({ allSkills }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Matching failed");
       setMatches(data.matches || []);
-      // Scroll results into view smoothly
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } catch (err) {
       setError(err.message);
@@ -108,9 +106,7 @@ function AIMatchBar({ allSkills }) {
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleMatch();
-  };
+  const handleKeyDown = (e) => { if (e.key === "Enter") handleMatch(); };
 
   const clear = () => {
     setProblem("");
@@ -139,7 +135,7 @@ function AIMatchBar({ allSkills }) {
           ref={inputRef}
           type="text"
           className="ai-match-input"
-          placeholder="Describe your task and I'll find the best skills… e.g. "I need to pull data from PDFs into a report""
+          placeholder="Describe your task and I'll find the best skills… e.g. 'I need to pull data from PDFs into a report'"
           value={problem}
           onChange={e => setProblem(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -156,30 +152,25 @@ function AIMatchBar({ allSkills }) {
         </button>
       </div>
 
-      {/* Example pills */}
       {!matches && !loading && !error && (
         <div className="ai-match-examples">
           {EXAMPLES.map(ex => (
-            <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>
-              {ex}
-            </button>
+            <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>{ex}</button>
           ))}
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="ai-match-error">
           ⚠️ {error} — <button className="ai-retry" onClick={clear}>Try again</button>
         </div>
       )}
 
-      {/* Results */}
       {matches && (
         <div className="ai-match-results" ref={resultsRef}>
           <div className="ai-match-results-header">
             <span className="ai-match-results-label">
-              ✨ {matches.length} skill{matches.length !== 1 ? "s" : ""} matched for "{problem}"
+              ✨ {matches.length} skill{matches.length !== 1 ? "s" : ""} matched for &quot;{problem}&quot;
             </span>
             <button className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "4px 10px" }} onClick={clear}>
               Clear
@@ -230,7 +221,6 @@ function AIMatchBar({ allSkills }) {
         </div>
       )}
 
-      {/* Modal for expanded view */}
       {selectedSkill && (
         <SkillModal
           skill={selectedSkill}
@@ -290,11 +280,8 @@ export default function Discover() {
       </div>
 
       <QuickGuide />
-
-      {/* AI Match Bar */}
       <AIMatchBar allSkills={skills} />
 
-      {/* Search + filter */}
       <div className="discover-controls">
         <div className="discover-search-bar">
           <span className="search-icon">🔍</span>
