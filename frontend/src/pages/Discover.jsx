@@ -42,13 +42,47 @@ function QuickGuide() {
   );
 }
 
+function VerifiedToggle({ value, onChange }) {
+  const [tooltip, setTooltip] = useState(false);
+  return (
+    <div className="verified-toggle-wrap">
+      <div className="verified-toggle">
+        <button
+          className={`toggle-opt ${value === "all" ? "active" : ""}`}
+          onClick={() => onChange("all")}
+        >
+          All skills
+        </button>
+        <button
+          className={`toggle-opt toggle-opt-verified ${value === "verified" ? "active" : ""}`}
+          onClick={() => onChange("verified")}
+        >
+          ✓ Verified only
+        </button>
+      </div>
+      <span
+        className="verified-info-icon"
+        onMouseEnter={() => setTooltip(true)}
+        onMouseLeave={() => setTooltip(false)}
+      >
+        ⓘ
+        {tooltip && (
+          <span className="verified-tooltip">
+            <strong>Verified skills</strong> have been reviewed and approved by the internal Octave team. Unverified skills are community uploads awaiting review.
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export default function Discover() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -62,7 +96,7 @@ export default function Discover() {
       let url = debouncedSearch
         ? `${API}/api/skills?q=${encodeURIComponent(debouncedSearch)}`
         : `${API}/api/skills`;
-      if (verifiedOnly) url += (url.includes("?") ? "&" : "?") + "verified=true";
+      if (filter === "verified") url += (url.includes("?") ? "&" : "?") + "verified=true";
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -72,7 +106,7 @@ export default function Discover() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, verifiedOnly]);
+  }, [debouncedSearch, filter]);
 
   useEffect(() => { fetchSkills(); }, [fetchSkills]);
 
@@ -102,12 +136,7 @@ export default function Discover() {
           />
           {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
         </div>
-        <button
-          className={`verified-filter ${verifiedOnly ? "active" : ""}`}
-          onClick={() => setVerifiedOnly(v => !v)}
-        >
-          {verifiedOnly ? "✓ Verified only" : "All skills"}
-        </button>
+        <VerifiedToggle value={filter} onChange={setFilter} />
       </div>
 
       {loading && (
@@ -124,7 +153,7 @@ export default function Discover() {
       {!loading && !error && skills.length === 0 && (
         <div className="empty-state">
           <div className="empty-state-icon">⬡</div>
-          <h3>{search ? "No skills match your search" : verifiedOnly ? "No verified skills yet" : "No skills yet"}</h3>
+          <h3>{search ? "No skills match your search" : filter === "verified" ? "No verified skills yet" : "No skills yet"}</h3>
           <p>{search ? "Try different keywords or browse all skills." : "Be the first to upload a skill."}</p>
           {!search && <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>Upload the first skill</Link>}
         </div>
@@ -135,8 +164,8 @@ export default function Discover() {
           <div className="discover-count">
             {skills.length} skill{skills.length !== 1 ? "s" : ""}
             {search && ` matching "${search}"`}
-            {verifiedOnly && " · verified only"}
-            {!verifiedOnly && verifiedCount > 0 && <span className="verified-count-hint"> · {verifiedCount} verified</span>}
+            {filter === "verified" && " · verified only"}
+            {filter === "all" && verifiedCount > 0 && <span className="verified-count-hint"> · {verifiedCount} verified</span>}
           </div>
           <div className="skills-grid">
             {skills.map((skill, i) => (
