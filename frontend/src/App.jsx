@@ -5,6 +5,7 @@ import Discover from "./pages/Discover";
 import Upload from "./pages/Upload";
 import AIMatch from "./pages/AIMatch";
 import Guide from "./pages/Guide";
+import Admin from "./pages/Admin";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/upload" element={<Upload />} />
         <Route path="/match" element={<AIMatch />} />
         <Route path="/guide" element={<Guide />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
   );

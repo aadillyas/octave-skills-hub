@@ -5,12 +5,50 @@ import "./Discover.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
+function QuickGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`quick-guide ${open ? "open" : ""}`}>
+      <button className="quick-guide-toggle" onClick={() => setOpen(o => !o)}>
+        <span>💡 How to use Skills Hub</span>
+        <span className="quick-guide-chevron">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="quick-guide-body">
+          <div className="quick-guide-steps">
+            <div className="quick-guide-step">
+              <span className="qg-num">1</span>
+              <div><strong>Find a skill</strong> — search by keyword, tag, or author. Or use <Link to="/match">AI Match</Link> to describe your problem in plain English.</div>
+            </div>
+            <div className="quick-guide-step">
+              <span className="qg-num">2</span>
+              <div><strong>Click any card</strong> to preview the full details, see what it pairs with, and understand how to apply it.</div>
+            </div>
+            <div className="quick-guide-step">
+              <span className="qg-num">3</span>
+              <div><strong>Download the .md file</strong> and load it into Claude — paste into Project Instructions, or attach it in a chat.</div>
+            </div>
+            <div className="quick-guide-step">
+              <span className="qg-num">4</span>
+              <div><strong>Share your own skills</strong> — go to <Link to="/upload">Upload Skill</Link> to contribute to the library.</div>
+            </div>
+          </div>
+          <div className="quick-guide-footer">
+            <Link to="/guide" className="quick-guide-link">Read the full guide →</Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Discover() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -21,9 +59,10 @@ export default function Discover() {
     setLoading(true);
     setError(null);
     try {
-      const url = debouncedSearch
+      let url = debouncedSearch
         ? `${API}/api/skills?q=${encodeURIComponent(debouncedSearch)}`
         : `${API}/api/skills`;
+      if (verifiedOnly) url += (url.includes("?") ? "&" : "?") + "verified=true";
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -33,11 +72,11 @@ export default function Discover() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, verifiedOnly]);
 
-  useEffect(() => {
-    fetchSkills();
-  }, [fetchSkills]);
+  useEffect(() => { fetchSkills(); }, [fetchSkills]);
+
+  const verifiedCount = skills.filter(s => s.verified === 1).length;
 
   return (
     <div className="page">
@@ -49,55 +88,64 @@ export default function Discover() {
         <Link to="/upload" className="btn btn-primary">+ Upload a Skill</Link>
       </div>
 
-      <div className="discover-search-bar">
-        <span className="search-icon">🔍</span>
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search by name, description, tag, or author…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          autoFocus
-        />
-        {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
+      <QuickGuide />
+
+      <div className="discover-controls">
+        <div className="discover-search-bar">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by name, description, tag, or author…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
+        </div>
+        <button
+          className={`verified-filter ${verifiedOnly ? "active" : ""}`}
+          onClick={() => setVerifiedOnly(v => !v)}
+        >
+          {verifiedOnly ? "✓ Verified only" : "All skills"}
+        </button>
       </div>
 
       {loading && (
-        <div className="discover-loading">
-          <div className="spinner" />
-          <span>Loading skills…</span>
-        </div>
+        <div className="discover-loading"><div className="spinner" /><span>Loading skills…</span></div>
       )}
 
       {error && (
         <div className="discover-error">
           <span>⚠️</span>
-          <div>
-            <strong>Connection error</strong>
-            <p>{error}</p>
-          </div>
+          <div><strong>Connection error</strong><p>{error}</p></div>
         </div>
       )}
 
       {!loading && !error && skills.length === 0 && (
         <div className="empty-state">
           <div className="empty-state-icon">⬡</div>
-          <h3>{search ? "No skills match your search" : "No skills yet"}</h3>
-          <p>{search ? "Try different keywords or browse all skills." : "Be the first to upload a skill to the library."}</p>
-          {!search && (
-            <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>
-              Upload the first skill
-            </Link>
-          )}
+          <h3>{search ? "No skills match your search" : verifiedOnly ? "No verified skills yet" : "No skills yet"}</h3>
+          <p>{search ? "Try different keywords or browse all skills." : "Be the first to upload a skill."}</p>
+          {!search && <Link to="/upload" className="btn btn-primary" style={{ marginTop: 20, display: "inline-flex" }}>Upload the first skill</Link>}
         </div>
       )}
 
       {!loading && !error && skills.length > 0 && (
         <>
-          <div className="discover-count">{skills.length} skill{skills.length !== 1 ? "s" : ""}{search && ` matching "${search}"`}</div>
+          <div className="discover-count">
+            {skills.length} skill{skills.length !== 1 ? "s" : ""}
+            {search && ` matching "${search}"`}
+            {verifiedOnly && " · verified only"}
+            {!verifiedOnly && verifiedCount > 0 && <span className="verified-count-hint"> · {verifiedCount} verified</span>}
+          </div>
           <div className="skills-grid">
             {skills.map((skill, i) => (
-              <SkillCard key={skill.id} skill={skill} style={{ animationDelay: `${i * 40}ms` }} />
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                allSkills={skills}
+                style={{ animationDelay: `${i * 40}ms` }}
+              />
             ))}
           </div>
         </>

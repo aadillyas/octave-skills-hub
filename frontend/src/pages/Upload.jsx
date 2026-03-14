@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Upload.css";
 
@@ -14,9 +14,7 @@ function parseSkillFile(content) {
     const descMatch = fm.match(/^description:\s*(.+)$/m);
     if (descMatch) result.description = descMatch[1].trim().replace(/^['"]|['"]$/g, "");
     const tagsMatch = fm.match(/^tags:\s*(.+)$/m);
-    if (tagsMatch) {
-      result.tags = tagsMatch[1].trim().replace(/[\[\]]/g, "").split(",").map(t => t.trim()).filter(Boolean).join(", ");
-    }
+    if (tagsMatch) result.tags = tagsMatch[1].trim().replace(/[\[\]]/g, "").split(",").map(t => t.trim()).filter(Boolean).join(", ");
   }
   if (!result.name) {
     const h1Match = content.match(/^#\s+(.+)$/m);
@@ -25,9 +23,8 @@ function parseSkillFile(content) {
   if (!result.description) {
     const body = content.replace(/^---[\s\S]*?---\s*\n/, "").replace(/^#+.+$/m, "").trim();
     const firstPara = body.split(/\n\n/)[0]?.trim();
-    if (firstPara && firstPara.length > 20 && firstPara.length < 400) {
+    if (firstPara && firstPara.length > 20 && firstPara.length < 400)
       result.description = firstPara.replace(/[#*`]/g, "").trim();
-    }
   }
   if (!result.tags) {
     const headings = [...content.matchAll(/^#{1,3}\s+(.+)$/gm)].map(m => m[1].toLowerCase().trim());
@@ -53,6 +50,15 @@ export default function Upload() {
   const [dragOver, setDragOver] = useState(false);
   const [autofilled, setAutofilled] = useState(false);
   const [tooltip, setTooltip] = useState(false);
+  const [existingSkills, setExistingSkills] = useState([]);
+  const [selectedPairs, setSelectedPairs] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/skills`)
+      .then(r => r.json())
+      .then(d => setExistingSkills(d.skills || []))
+      .catch(() => {});
+  }, []);
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -61,8 +67,7 @@ export default function Upload() {
     const isValid = f.name.endsWith(".md") || f.name.endsWith(".skill");
     if (!isValid) { setError("Only .md and .skill files are accepted."); return; }
     setFile(f); setError(null); setAutofilled(false);
-    const isMd = f.name.endsWith(".md");
-    if (isMd) {
+    if (f.name.endsWith(".md")) {
       const text = await f.text();
       const parsed = parseSkillFile(text);
       setForm(prev => ({ author: prev.author, name: parsed.name || f.name.replace(/\.md$/, "").replace(/[-_]/g, " "), description: parsed.description || "", tags: parsed.tags || "" }));
@@ -74,13 +79,23 @@ export default function Upload() {
 
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); };
 
+  const togglePair = (id) => {
+    setSelectedPairs(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.author || !form.description || !form.tags || !file) { setError("Please fill in all fields and select a file."); return; }
+    if (!form.name || !form.author || !form.description || !form.tags || !file) {
+      setError("Please fill in all fields and select a file."); return;
+    }
     setSubmitting(true); setError(null);
     const fd = new FormData();
-    fd.append("name", form.name.trim()); fd.append("author", form.author.trim());
-    fd.append("description", form.description.trim()); fd.append("tags", form.tags); fd.append("file", file);
+    fd.append("name", form.name.trim());
+    fd.append("author", form.author.trim());
+    fd.append("description", form.description.trim());
+    fd.append("tags", form.tags);
+    fd.append("pairs_with", JSON.stringify(selectedPairs));
+    fd.append("file", file);
     try {
       const res = await fetch(`${API}/api/skills`, { method: "POST", body: fd });
       const data = await res.json();
@@ -103,7 +118,7 @@ export default function Upload() {
               ⓘ
               {tooltip && (
                 <span className="autopopulate-tooltip">
-                  <strong>Auto-populate</strong> only works with <span className="tt-md">MD</span> files — fields are parsed directly from the file's front matter. <span className="tt-skill">SKILL</span> files are binary and require manual entry.
+                  <strong>Auto-populate</strong> only works with <span className="tt-md">MD</span> files. <span className="tt-skill">SKILL</span> files require manual entry.
                 </span>
               )}
             </span>
@@ -111,10 +126,19 @@ export default function Upload() {
         </div>
       </div>
 
+      <div className="upload-notice">
+        ℹ️ Uploaded skills are <strong>pending review</strong> before appearing as verified in the library. They'll still be visible to all users while awaiting verification.
+      </div>
+
       <div className="upload-layout">
         <form className="upload-form card" onSubmit={handleSubmit}>
           {error && <div className="upload-error">⚠️ {error}</div>}
-          <div className={`drop-zone ${dragOver ? "drag-over" : ""} ${file ? "has-file" : ""}`} onClick={() => fileRef.current.click()} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={handleDrop}>
+
+          <div className={`drop-zone ${dragOver ? "drag-over" : ""} ${file ? "has-file" : ""}`}
+            onClick={() => fileRef.current.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}>
             <input ref={fileRef} type="file" accept=".md,.skill,text/markdown,text/plain" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
             {file ? (
               <div className="drop-zone-file">
@@ -122,8 +146,8 @@ export default function Upload() {
                 <div>
                   <div className="drop-zone-file-name">{file.name}<span className={`file-type-badge file-type-${fileType.toLowerCase()}`}>{fileType}</span></div>
                   <div className="drop-zone-file-size">{(file.size / 1024).toFixed(1)} KB — click to change</div>
-                  {autofilled && <div className="autofill-notice">✨ Fields auto-populated from file — please review below</div>}
-                  {fileType === "SKILL" && <div className="manual-notice">📝 SKILL files require manual field entry — see ⓘ above for why</div>}
+                  {autofilled && <div className="autofill-notice">✨ Fields auto-populated — please review below</div>}
+                  {fileType === "SKILL" && <div className="manual-notice">📝 SKILL files require manual field entry</div>}
                 </div>
               </div>
             ) : (
@@ -134,6 +158,7 @@ export default function Upload() {
               </div>
             )}
           </div>
+
           <div className="form-group"><label className="form-label">Skill Name</label><input className="form-input" type="text" placeholder="e.g. PDF Extractor" value={form.name} onChange={set("name")} required /></div>
           <div className="form-group"><label className="form-label">Your Name</label><input className="form-input" type="text" placeholder="e.g. Sarah Johnson" value={form.author} onChange={set("author")} required /></div>
           <div className="form-group">
@@ -147,6 +172,23 @@ export default function Upload() {
             <div className="form-hint">Comma-separated. Use lowercase.</div>
             {tagList.length > 0 && <div className="tag-preview">{tagList.map((t) => <span key={t} className="tag tag-pink">{t}</span>)}</div>}
           </div>
+
+          {existingSkills.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Pairs well with <span className="form-label-optional">(optional)</span></label>
+              <div className="form-hint" style={{marginBottom: 10}}>Select skills from the library that work well together with this one.</div>
+              <div className="pairs-selector">
+                {existingSkills.map(s => (
+                  <label key={s.id} className={`pairs-option ${selectedPairs.includes(s.id) ? "selected" : ""}`}>
+                    <input type="checkbox" checked={selectedPairs.includes(s.id)} onChange={() => togglePair(s.id)} />
+                    <span>{s.name}</span>
+                    {s.verified === 1 && <span className="verified-badge" style={{fontSize:"0.6rem"}}>✓</span>}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button type="submit" className="btn btn-primary upload-submit" disabled={submitting}>
             {submitting ? <><div className="spinner" style={{ width: 16, height: 16 }} /> Uploading…</> : "Upload Skill →"}
           </button>
@@ -166,12 +208,12 @@ export default function Upload() {
               <li><span className="tip-icon">✅</span><span>State what the skill <strong>does</strong>, not how it works</span></li>
               <li><span className="tip-icon">✅</span><span>Mention the <strong>input</strong> and <strong>output</strong> format</span></li>
               <li><span className="tip-icon">✅</span><span>Describe the <strong>use case</strong> it was built for</span></li>
-              <li><span className="tip-icon">✅</span><span>Call out any <strong>limitations</strong> or dependencies</span></li>
+              <li><span className="tip-icon">✅</span><span>Call out any <strong>limitations</strong></span></li>
             </ul>
           </div>
           <div className="tips-card card">
             <h3 className="tips-title">Good tag examples</h3>
-            <div className="tips-tags">{["pdf", "excel", "summarisation", "extraction", "automation", "email", "data-cleaning", "presentation", "reporting", "web-search"].map(t => <span key={t} className="tag">{t}</span>)}</div>
+            <div className="tips-tags">{["pdf", "excel", "summarisation", "extraction", "automation", "email", "data-cleaning", "presentation", "reporting"].map(t => <span key={t} className="tag">{t}</span>)}</div>
           </div>
         </div>
       </div>

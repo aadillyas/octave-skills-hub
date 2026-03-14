@@ -1,0 +1,213 @@
+.admin-login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.admin-login-box {
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.admin-login-icon { font-size: 2.5rem; margin-bottom: 16px; }
+.admin-login-title { font-size: 1.4rem; margin-bottom: 8px; }
+.admin-login-sub { font-size: 0.875rem; color: var(--muted); margin-bottom: 24px; }
+
+.admin-login-box .form-input { margin-bottom: 12px; }
+
+.admin-error {
+  color: #dc2626; font-size: 0.8rem;
+  margin-bottom: 12px; text-align: left;
+}
+
+.admin-login-btn { width: 100%; justify-content: center; padding: 12px; }
+
+/* Admin page */
+.admin-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.admin-flash {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-family: var(--font-head);
+  font-weight: 500;
+  animation: fadeIn 0.2s ease;
+}
+
+/* Tabs */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.admin-tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-family: var(--font-head);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.admin-tab:hover { color: var(--text); }
+.admin-tab.active { color: var(--pink); border-bottom-color: var(--pink); font-weight: 600; }
+
+.admin-tab-badge {
+  background: var(--pink);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.admin-tab-badge-teal {
+  background: var(--teal);
+  color: var(--text);
+}
+
+/* Skill rows */
+.admin-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-skill-row {
+  padding: 20px 24px;
+}
+
+.admin-skill-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-skill-info { flex: 1; }
+
+.admin-skill-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.admin-skill-name {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.admin-skill-meta {
+  font-size: 0.775rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.admin-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.admin-skill-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-verify-btn { font-size: 0.8rem; padding: 7px 14px; }
+.admin-delete-btn { color: #dc2626 !important; }
+.admin-delete-btn:hover { background: #fff5f5 !important; }
+
+/* Preview */
+.admin-skill-preview {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* Pairs editor */
+.admin-pairs-editor {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-pairs-label {
+  font-family: var(--font-head);
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.admin-pairs-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-pair-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  font-size: 0.825rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--surface);
+}
+
+.admin-pair-option:hover { border-color: var(--teal); }
+.admin-pair-option.selected {
+  background: rgba(38, 234, 159, 0.08);
+  border-color: var(--teal);
+  color: var(--teal-text);
+}
+
+.admin-pair-option input { display: none; }
+
+.admin-pairs-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Verified badge (reused) */
+.verified-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 0.65rem; font-weight: 700; font-family: var(--font-head);
+  background: rgba(38, 234, 159, 0.12); color: var(--teal-text);
+  border: 1px solid rgba(38, 234, 159, 0.25); letter-spacing: 0.03em;
+}

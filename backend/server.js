@@ -9,8 +9,8 @@ const { queries } = require("./database");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "octave-admin";
 
-// Allow localhost for dev and any Vercel deployment for prod
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || origin.includes("localhost") || origin.includes("vercel.app") || origin.includes(process.env.FRONTEND_URL || "")) {
@@ -43,29 +43,56 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+// Simple admin auth middleware
+function adminAuth(req, res, next) {
+  const password = req.headers["x-admin-password"];
+  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorised" });
+  next();
+}
+
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set in .env");
   return new GoogleGenerativeAI(apiKey);
 }
 
+// ── Public Routes ─────────────────────────────────────────────────────────────
+
+// GET all skills — optionally filter by verified only
 app.get("/api/skills", (req, res) => {
   try {
-    const { q } = req.query;
-    let skills = q && q.trim() ? queries.searchSkills.all(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`) : queries.getAllSkills.all();
-    skills = skills.map((s) => ({ ...s, tags: JSON.parse(s.tags) }));
+    const { q, verified } = req.query;
+    let skills = q && q.trim()
+      ? queries.searchSkills.all(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`)
+      : queries.getAllSkills.all();
+    if (verified === "true") skills = skills.filter(s => s.verified === 1);
+    skills = skills.map((s) => ({
+      ...s,
+      tags: JSON.parse(s.tags),
+      pairs_with: JSON.parse(s.pairs_with || "[]")
+    }));
     res.json({ skills });
   } catch (err) { res.status(500).json({ error: "Failed to fetch skills" }); }
 });
 
+// GET all skill names (for pairs_with dropdown)
+app.get("/api/skills/names", (req, res) => {
+  try {
+    const names = queries.getAllSkillNames.all();
+    res.json({ skills: names });
+  } catch (err) { res.status(500).json({ error: "Failed to fetch skill names" }); }
+});
+
+// GET single skill
 app.get("/api/skills/:id", (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
     if (!skill) return res.status(404).json({ error: "Skill not found" });
-    res.json({ ...skill, tags: JSON.parse(skill.tags) });
+    res.json({ ...skill, tags: JSON.parse(skill.tags), pairs_with: JSON.parse(skill.pairs_with || "[]") });
   } catch (err) { res.status(500).json({ error: "Failed to fetch skill" }); }
 });
 
+// GET download
 app.get("/api/skills/:id/download", (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
@@ -77,19 +104,31 @@ app.get("/api/skills/:id/download", (req, res) => {
   } catch (err) { res.status(500).json({ error: "Failed to download skill" }); }
 });
 
+// POST upload skill (unverified by default)
 app.post("/api/skills", upload.single("file"), (req, res) => {
   try {
-    const { name, author, description, tags } = req.body;
-    if (!name || !author || !description || !tags || !req.file) return res.status(400).json({ error: "All fields and a .md or .skill file are required" });
+    const { name, author, description, tags, pairs_with } = req.body;
+    if (!name || !author || !description || !tags || !req.file)
+      return res.status(400).json({ error: "All fields and a .md or .skill file are required" });
     const fileContent = fs.readFileSync(req.file.path, "utf-8");
     let parsedTags;
     try { parsedTags = JSON.parse(tags); } catch { parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean); }
-    const result = queries.insertSkill.run({ name: name.trim(), author: author.trim(), description: description.trim(), tags: JSON.stringify(parsedTags), filename: req.file.originalname, file_path: req.file.path, file_content: fileContent });
-    res.status(201).json({ message: "Skill uploaded successfully", id: result.lastInsertRowid });
+    let parsedPairs;
+    try { parsedPairs = JSON.parse(pairs_with || "[]"); } catch { parsedPairs = []; }
+
+    const result = queries.insertSkill.run({
+      name: name.trim(), author: author.trim(), description: description.trim(),
+      tags: JSON.stringify(parsedTags), filename: req.file.originalname,
+      file_path: req.file.path, file_content: fileContent,
+      verified: 0,
+      pairs_with: JSON.stringify(parsedPairs)
+    });
+    res.status(201).json({ message: "Skill uploaded successfully — pending review", id: result.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: err.message || "Failed to upload skill" }); }
 });
 
-app.delete("/api/skills/:id", (req, res) => {
+// DELETE skill
+app.delete("/api/skills/:id", adminAuth, (req, res) => {
   try {
     const skill = queries.getSkillById.get(req.params.id);
     if (!skill) return res.status(404).json({ error: "Skill not found" });
@@ -98,6 +137,55 @@ app.delete("/api/skills/:id", (req, res) => {
     res.json({ message: "Skill deleted" });
   } catch (err) { res.status(500).json({ error: "Failed to delete skill" }); }
 });
+
+// ── Admin Routes ──────────────────────────────────────────────────────────────
+
+// GET all pending (unverified) skills
+app.get("/api/admin/pending", adminAuth, (req, res) => {
+  try {
+    const skills = queries.getPendingSkills.all().map(s => ({
+      ...s, tags: JSON.parse(s.tags), pairs_with: JSON.parse(s.pairs_with || "[]")
+    }));
+    res.json({ skills });
+  } catch (err) { res.status(500).json({ error: "Failed to fetch pending skills" }); }
+});
+
+// POST verify a skill
+app.post("/api/admin/verify/:id", adminAuth, (req, res) => {
+  try {
+    queries.verifySkill.run(req.params.id);
+    res.json({ message: "Skill verified" });
+  } catch (err) { res.status(500).json({ error: "Failed to verify skill" }); }
+});
+
+// POST unverify a skill
+app.post("/api/admin/unverify/:id", adminAuth, (req, res) => {
+  try {
+    queries.unverifySkill.run(req.params.id);
+    res.json({ message: "Skill unverified" });
+  } catch (err) { res.status(500).json({ error: "Failed to unverify skill" }); }
+});
+
+// PATCH update pairs_with for a skill
+app.patch("/api/admin/pairs/:id", adminAuth, (req, res) => {
+  try {
+    const { pairs_with } = req.body;
+    queries.updatePairsWith.run(JSON.stringify(pairs_with || []), req.params.id);
+    res.json({ message: "Pairs updated" });
+  } catch (err) { res.status(500).json({ error: "Failed to update pairs" }); }
+});
+
+// POST admin login check
+app.post("/api/admin/login", (req, res) => {
+  const { password } = req.body;
+  if (password === ADMIN_PASSWORD) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: "Incorrect password" });
+  }
+});
+
+// ── AI Match ──────────────────────────────────────────────────────────────────
 
 app.post("/api/match", async (req, res) => {
   try {
@@ -113,7 +201,11 @@ app.post("/api/match", async (req, res) => {
     const text = result.response.text().trim();
     let matches;
     try { matches = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { return res.status(500).json({ error: "AI returned an unexpected format. Please try again." }); }
-    const enriched = matches.map((match) => { const skill = skills.find((s) => s.id === match.id); if (!skill) return null; return { ...match, name: skill.name, author: skill.author, tags: JSON.parse(skill.tags), description: skill.description }; }).filter(Boolean).sort((a, b) => b.relevance_score - a.relevance_score);
+    const enriched = matches.map((match) => {
+      const skill = skills.find((s) => s.id === match.id);
+      if (!skill) return null;
+      return { ...match, name: skill.name, author: skill.author, tags: JSON.parse(skill.tags), description: skill.description, verified: skill.verified };
+    }).filter(Boolean).sort((a, b) => b.relevance_score - a.relevance_score);
     res.json({ matches: enriched });
   } catch (err) {
     if (err.message?.includes("GEMINI_API_KEY")) return res.status(500).json({ error: "Gemini API key not configured." });
