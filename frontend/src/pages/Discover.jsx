@@ -25,7 +25,7 @@ function QuickGuide() {
           <div className="quick-guide-steps">
             <div className="quick-guide-step">
               <span className="qg-num">1</span>
-              <div><strong>Find a skill</strong> — browse the library or use the AI bar at the bottom to describe your problem in plain English.</div>
+              <div><strong>Find a skill</strong> — browse the library or describe your problem in the AI bar below to get matched instantly.</div>
             </div>
             <div className="quick-guide-step">
               <span className="qg-num">2</span>
@@ -126,10 +126,37 @@ function AIMatchBar({ allSkills }) {
   };
 
   return (
-    <div className="ai-float-wrap">
-      {/* Results panel floats above the input bar */}
+    <div className="ai-match-wrap">
+      {/* Input bar */}
+      <div className="ai-match-bar">
+        <div className="ai-match-input-row">
+          <span className="ai-match-icon">✨</span>
+          <input
+            ref={inputRef}
+            type="text"
+            className="ai-match-input"
+            placeholder="Describe your task and I'll find the best matching skills…"
+            value={problem}
+            onChange={e => setProblem(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          {problem && !loading && <button className="ai-match-clear" onClick={clear}>✕</button>}
+          <button className="ai-match-btn" onClick={() => handleMatch()} disabled={loading || !problem.trim()}>
+            {loading ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : "Match →"}
+          </button>
+        </div>
+        {!matches && !loading && !error && (
+          <div className="ai-match-examples">
+            {EXAMPLES.map(ex => (
+              <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>{ex}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Results — inline below the bar */}
       {(matches || loading || error) && (
-        <div className="ai-float-results">
+        <div className="ai-match-results">
           {loading && (
             <div className="ai-results-loading">
               <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
@@ -184,33 +211,6 @@ function AIMatchBar({ allSkills }) {
         </div>
       )}
 
-      {/* Floating input bar */}
-      <div className="ai-match-bar">
-        <div className="ai-match-input-row">
-          <span className="ai-match-icon">✨</span>
-          <input
-            ref={inputRef}
-            type="text"
-            className="ai-match-input"
-            placeholder="Describe your task and I'll find the best matching skills…"
-            value={problem}
-            onChange={e => setProblem(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-          {problem && !loading && <button className="ai-match-clear" onClick={clear}>✕</button>}
-          <button className="ai-match-btn" onClick={() => handleMatch()} disabled={loading || !problem.trim()}>
-            {loading ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : "Match →"}
-          </button>
-        </div>
-        {!matches && !loading && !error && (
-          <div className="ai-match-examples">
-            {EXAMPLES.map(ex => (
-              <button key={ex} className="ai-example-pill" onClick={() => handleMatch(ex)}>{ex}</button>
-            ))}
-          </div>
-        )}
-      </div>
-
       {selectedSkill && (
         <SkillModal
           skill={selectedSkill}
@@ -250,7 +250,7 @@ export default function Discover() {
   const verifiedCount = skills.filter(s => s.verified === 1).length;
 
   return (
-    <div className="page page-with-float">
+    <div className="page">
       <div className="discover-header page-header">
         <div>
           <h1 className="page-title">Skill Library</h1>
@@ -260,6 +260,7 @@ export default function Discover() {
       </div>
 
       <QuickGuide />
+      <AIMatchBar allSkills={skills} />
 
       <div className="discover-controls">
         <VerifiedToggle value={filter} onChange={setFilter} />
@@ -297,9 +298,6 @@ export default function Discover() {
           </div>
         </>
       )}
-
-      {/* Floating AI bar — fixed at bottom */}
-      <AIMatchBar allSkills={skills} />
     </div>
   );
 }
