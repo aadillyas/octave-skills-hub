@@ -14,27 +14,46 @@ function get(url) {
     https.get(url, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => resolve(JSON.parse(data)));
+      res.on("end", () => {
+        try { resolve({ json: JSON.parse(data), raw: data }); }
+        catch { resolve({ json: null, raw: data }); }
+      });
     }).on("error", reject);
   });
 }
 
 async function backup() {
   console.log("⬇️  Fetching skills from Railway...");
-  const { skills } = await get(`${API}/api/skills`);
+  const { json } = await get(`${API}/api/skills`);
+  const skills = json?.skills;
 
   if (!skills || skills.length === 0) {
     console.log("⚠️  No skills found — nothing to back up.");
     return;
   }
 
-  // Fetch full content for each skill (including file_content)
-  console.log(`📦  Found ${skills.length} skill(s). Fetching full details...`);
+  console.log(`📦  Found ${skills.length} skill(s). Fetching file content...`);
   const full = [];
+
   for (const skill of skills) {
-    const detail = await get(`${API}/api/skills/${skill.id}`);
-    full.push(detail);
-    console.log(`  ✓ ${skill.name}`);
+    // Fetch the actual file content via the individual endpoint
+    const { json: detail } = await get(`${API}/api/skills/${skill.id}`);
+
+    full.push({
+      id: skill.id,
+      name: skill.name,
+      author: skill.author,
+      description: skill.description,
+      tags: skill.tags,
+      filename: skill.filename,
+      verified: skill.verified,
+      pairs_with: skill.pairs_with || [],   // ← captured from list endpoint
+      downloads: skill.downloads,
+      created_at: skill.created_at,
+      file_content: detail?.file_content || "", // ← from detail endpoint
+    });
+
+    console.log(`  ✓ ${skill.name} (pairs: ${(skill.pairs_with || []).length})`);
   }
 
   fs.writeFileSync(OUTPUT, JSON.stringify(full, null, 2));
