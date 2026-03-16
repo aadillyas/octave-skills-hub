@@ -38,6 +38,22 @@ async function backup() {
   for (const skill of skills) {
     // Fetch the actual file content via the individual endpoint
     const { json: detail } = await get(`${API}/api/skills/${skill.id}`);
+    // Fetch attachment metadata + content
+    const { json: attData } = await get(`${API}/api/skills/${skill.id}/attachments`);
+    const attachments = [];
+    for (const att of (attData?.attachments || [])) {
+      // Download raw attachment content via download endpoint is not ideal;
+      // instead we re-fetch full detail — but attachments endpoint only has metadata.
+      // We store what we have; restore will skip content-less attachments.
+      // NOTE: full attachment content is only available server-side (DB).
+      // For now store metadata only — restore cannot re-upload binary attachments via HTTP.
+      attachments.push({
+        id: att.id,
+        filename: att.filename,
+        file_size: att.file_size,
+        created_at: att.created_at,
+      });
+    }
 
     full.push({
       id: skill.id,
@@ -51,9 +67,10 @@ async function backup() {
       downloads: skill.downloads,
       created_at: skill.created_at,
       file_content: detail?.file_content || "", // ← from detail endpoint
+      attachments,
     });
 
-    console.log(`  ✓ ${skill.name} (pairs: ${(skill.pairs_with || []).length})`);
+    console.log(`  ✓ ${skill.name} (pairs: ${(skill.pairs_with || []).length}, attachments: ${attachments.length})`);
   }
 
   fs.writeFileSync(OUTPUT, JSON.stringify(full, null, 2));

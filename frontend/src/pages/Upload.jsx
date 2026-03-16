@@ -43,7 +43,9 @@ function getFileType(filename) {
 export default function Upload() {
   const navigate = useNavigate();
   const fileRef = useRef();
+  const attachmentRef = useRef();
   const [form, setForm] = useState({ name: "", author: "", description: "", tags: "" });
+  const [attachments, setAttachments] = useState([]);
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -96,6 +98,9 @@ export default function Upload() {
     fd.append("tags", form.tags);
     fd.append("pairs_with", JSON.stringify(selectedPairs));
     fd.append("file", file);
+    for (const att of attachments) {
+      fd.append("attachments", att);
+    }
     try {
       const res = await fetch(`${API}/api/skills`, { method: "POST", body: fd });
       const data = await res.json();
@@ -157,6 +162,34 @@ export default function Upload() {
                 <div className="drop-zone-sub">or click to browse · .md and .skill files accepted</div>
               </div>
             )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Supporting Files <span className="form-label-optional">(optional)</span></label>
+            <div className="form-hint" style={{marginBottom: 8}}>Attach any supporting files (.py, .js, .csv, etc.) that go with this skill.</div>
+            <input
+              ref={attachmentRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const picked = Array.from(e.target.files);
+                setAttachments(prev => [...prev, ...picked]);
+                e.target.value = "";
+              }}
+            />
+            {attachments.length > 0 && (
+              <ul className="attachment-list">
+                {attachments.map((att, i) => (
+                  <li key={i} className="attachment-item">
+                    <span className="attachment-name">{att.name}</span>
+                    <span className="attachment-size">{(att.size / 1024).toFixed(1)} KB</span>
+                    <button type="button" className="attachment-remove" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>x</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" className="attachment-add-btn" onClick={() => attachmentRef.current.click()}>+ Add files</button>
           </div>
 
           <div className="form-group"><label className="form-label">Skill Name</label><input className="form-input" type="text" placeholder="e.g. PDF Extractor" value={form.name} onChange={set("name")} required /></div>

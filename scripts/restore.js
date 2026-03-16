@@ -115,7 +115,9 @@ async function restore() {
     if (res.status === 201) {
       const newId = res.body.id;
       idMap[skill.id] = newId;
-      console.log(`  ✓ Uploaded: ${skill.name} (new id: ${newId})`);
+      const attCount = (skill.attachments || []).length;
+      const attNote = attCount > 0 ? ` (${attCount} attachment(s) — re-upload manually)` : "";
+      console.log(`  ✓ Uploaded: ${skill.name} (new id: ${newId})${attNote}`);
 
       // Re-verify if it was verified
       if (skill.verified === 1) {

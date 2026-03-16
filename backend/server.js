@@ -4,6 +4,7 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const archiver = require("archiver");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { queries } = require("./database");
 
@@ -41,6 +42,20 @@ const upload = multer({
     if (validExt || validMime) { cb(null, true); } else { cb(new Error("Only .md and .skill files are allowed"), false); }
   },
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const uploadWithAttachments = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === "file") {
+      const validExt = file.originalname.endsWith(".md") || file.originalname.endsWith(".skill");
+      const validMime = ["text/markdown", "text/plain", "application/octet-stream"].includes(file.mimetype);
+      if (validExt || validMime) { cb(null, true); } else { cb(new Error("Only .md and .skill files are allowed"), false); }
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 function adminAuth(req, res, next) {
@@ -89,30 +104,64 @@ app.get("/api/skills/:id/download", (req, res) => {
     const skill = queries.getSkillById.get(req.params.id);
     if (!skill) return res.status(404).json({ error: "Skill not found" });
     queries.incrementDownloads.run(req.params.id);
-    res.setHeader("Content-Disposition", `attachment; filename="${skill.filename}"`);
-    res.setHeader("Content-Type", "text/markdown");
-    res.send(skill.file_content);
+    const attachments = queries.getAttachmentsWithContentBySkillId.all(req.params.id);
+    if (attachments.length === 0) {
+      res.setHeader("Content-Disposition", `attachment; filename="${skill.filename}"`);
+      res.setHeader("Content-Type", "text/markdown");
+      return res.send(skill.file_content);
+    }
+    const zipName = skill.filename.replace(/\.(md|skill)$/, "") + ".zip";
+    res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
+    res.setHeader("Content-Type", "application/zip");
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.on("error", (err) => { throw err; });
+    archive.pipe(res);
+    archive.append(Buffer.from(skill.file_content, "utf-8"), { name: skill.filename });
+    for (const att of attachments) {
+      archive.append(att.file_content, { name: att.filename });
+    }
+    archive.finalize();
   } catch (err) { res.status(500).json({ error: "Failed to download skill" }); }
 });
 
-app.post("/api/skills", upload.single("file"), (req, res) => {
+app.post("/api/skills", uploadWithAttachments.fields([{ name: "file", maxCount: 1 }, { name: "attachments", maxCount: 10 }]), (req, res) => {
   try {
     const { name, author, description, tags, pairs_with } = req.body;
-    if (!name || !author || !description || !tags || !req.file)
+    const mainFile = req.files?.file?.[0];
+    if (!name || !author || !description || !tags || !mainFile)
       return res.status(400).json({ error: "All fields and a .md or .skill file are required" });
-    const fileContent = fs.readFileSync(req.file.path, "utf-8");
+    const fileContent = fs.readFileSync(mainFile.path, "utf-8");
     let parsedTags;
     try { parsedTags = JSON.parse(tags); } catch { parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean); }
     let parsedPairs;
     try { parsedPairs = JSON.parse(pairs_with || "[]"); } catch { parsedPairs = []; }
     const result = queries.insertSkill.run({
       name: name.trim(), author: author.trim(), description: description.trim(),
-      tags: JSON.stringify(parsedTags), filename: req.file.originalname,
-      file_path: req.file.path, file_content: fileContent,
+      tags: JSON.stringify(parsedTags), filename: mainFile.originalname,
+      file_path: mainFile.path, file_content: fileContent,
       verified: 0, pairs_with: JSON.stringify(parsedPairs)
     });
-    res.status(201).json({ message: "Skill uploaded successfully — pending review", id: result.lastInsertRowid });
+    const skillId = result.lastInsertRowid;
+    for (const att of (req.files?.attachments || [])) {
+      const content = fs.readFileSync(att.path);
+      queries.insertAttachment.run({ skill_id: skillId, filename: att.originalname, file_content: content, file_size: att.size });
+    }
+    res.status(201).json({ message: "Skill uploaded successfully — pending review", id: skillId });
   } catch (err) { res.status(500).json({ error: err.message || "Failed to upload skill" }); }
+});
+
+app.get("/api/skills/:id/attachments", (req, res) => {
+  try {
+    const attachments = queries.getAttachmentsBySkillId.all(req.params.id);
+    res.json({ attachments });
+  } catch (err) { res.status(500).json({ error: "Failed to fetch attachments" }); }
+});
+
+app.delete("/api/skills/:skillId/attachments/:attId", adminAuth, (req, res) => {
+  try {
+    queries.deleteAttachment.run(req.params.attId, req.params.skillId);
+    res.json({ message: "Attachment deleted" });
+  } catch (err) { res.status(500).json({ error: "Failed to delete attachment" }); }
 });
 
 app.delete("/api/skills/:id", adminAuth, (req, res) => {

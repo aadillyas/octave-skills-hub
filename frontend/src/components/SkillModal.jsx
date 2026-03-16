@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "./SkillModal.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
@@ -10,6 +10,15 @@ function getFileType(filename) {
 
 export default function SkillModal({ skill, allSkills = [], onClose, onDownload }) {
   const fileType = getFileType(skill.filename);
+  const [attachments, setAttachments] = useState([]);
+
+  useEffect(() => {
+    setAttachments([]);
+    fetch(`${API}/api/skills/${skill.id}/attachments`)
+      .then(r => r.json())
+      .then(d => setAttachments(d.attachments || []))
+      .catch(() => {});
+  }, [skill.id]);
 
   const pairedSkills = (skill.pairs_with || [])
     .map(id => allSkills.find(s => s.id === id))
@@ -70,6 +79,22 @@ export default function SkillModal({ skill, allSkills = [], onClose, onDownload 
           </div>
         </div>
 
+        {/* Attachments */}
+        {attachments.length > 0 && (
+          <div className="modal-section">
+            <div className="modal-section-label">Attachments</div>
+            <ul className="modal-attachments">
+              {attachments.map(att => (
+                <li key={att.id} className="modal-attachment-item">
+                  <span className="modal-attachment-name">{att.filename}</span>
+                  <span className="modal-attachment-size">{(att.file_size / 1024).toFixed(1)} KB</span>
+                </li>
+              ))}
+            </ul>
+            <p className="modal-attachment-hint">Included in the ZIP download below.</p>
+          </div>
+        )}
+
         {/* Pairs with */}
         {pairedSkills.length > 0 && (
           <div className="modal-section">
@@ -103,7 +128,7 @@ export default function SkillModal({ skill, allSkills = [], onClose, onDownload 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Close</button>
           <button className="btn btn-primary" onClick={onDownload}>
-            Download .{fileType.toLowerCase()} →
+            {attachments.length > 0 ? "Download ZIP →" : `Download .${fileType.toLowerCase()} \u2192`}
           </button>
         </div>
       </div>

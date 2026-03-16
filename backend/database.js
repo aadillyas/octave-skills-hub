@@ -23,6 +23,17 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS skill_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    skill_id INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    file_content BLOB NOT NULL,
+    file_size INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // Migrate existing databases — safe to run on fresh ones too
 try { db.exec(`ALTER TABLE skills ADD COLUMN verified INTEGER DEFAULT 0`); } catch(e) {}
 try { db.exec(`ALTER TABLE skills ADD COLUMN pairs_with TEXT DEFAULT '[]'`); } catch(e) {}
@@ -63,7 +74,26 @@ const queries = {
   `),
 
   deleteSkill: db.prepare(`DELETE FROM skills WHERE id = ?`),
-  getAllSkillNames: db.prepare(`SELECT id, name, verified FROM skills ORDER BY name ASC`)
+  getAllSkillNames: db.prepare(`SELECT id, name, verified FROM skills ORDER BY name ASC`),
+
+  insertAttachment: db.prepare(`
+    INSERT INTO skill_attachments (skill_id, filename, file_content, file_size)
+    VALUES (@skill_id, @filename, @file_content, @file_size)
+  `),
+
+  getAttachmentsBySkillId: db.prepare(`
+    SELECT id, skill_id, filename, file_size, created_at FROM skill_attachments WHERE skill_id = ?
+  `),
+
+  getAttachmentsWithContentBySkillId: db.prepare(`
+    SELECT id, filename, file_content, file_size FROM skill_attachments WHERE skill_id = ?
+  `),
+
+  getAttachmentContentById: db.prepare(`
+    SELECT filename, file_content FROM skill_attachments WHERE id = ?
+  `),
+
+  deleteAttachment: db.prepare(`DELETE FROM skill_attachments WHERE id = ? AND skill_id = ?`)
 };
 
 module.exports = { db, queries };
