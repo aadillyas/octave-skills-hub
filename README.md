@@ -8,6 +8,7 @@ An internal web application for your team to discover, share, and AI-match Claud
 - **Upload** — Share your own `.md` skill files with the team
 - **AI Match** — Describe a problem in plain English; Gemini AI recommends the best matching skills
 - **Guide** — Step-by-step instructions for loading skills into Claude
+- **Auto backup + restore** — The backend snapshots the full skills library after uploads/admin changes and can restore it automatically on deploy
 
 ---
 
@@ -41,6 +42,17 @@ Open `.env` and replace `your_gemini_api_key_here` with your actual Gemini API k
 ```
 GEMINI_API_KEY=AIza...your_key_here
 ```
+
+Optional but recommended for production auto-backups on Railway:
+
+```env
+GITHUB_BACKUP_TOKEN=github_pat_...
+GITHUB_BACKUP_REPO=owner/repo
+GITHUB_BACKUP_BRANCH=main
+GITHUB_BACKUP_PATH=scripts/skills-backup.json
+```
+
+With those set, every upload/admin metadata change writes a fresh `scripts/skills-backup.json` locally and syncs it to GitHub. On Railway startup, if the SQLite DB is empty, the backend restores from the latest GitHub backup automatically.
 
 ### 3. Set up the frontend
 
@@ -112,6 +124,8 @@ skills-hub/
 | GET | `/api/skills/:id/download` | Download the .md file |
 | POST | `/api/skills` | Upload a new skill (multipart form) |
 | DELETE | `/api/skills/:id` | Delete a skill |
+| GET | `/api/admin/backup` | Export full backup JSON (admin only) |
+| POST | `/api/admin/restore` | Restore full backup JSON into an empty DB (admin only) |
 | POST | `/api/match` | AI skill matching |
 | GET | `/api/health` | Health check |
 
@@ -142,6 +156,12 @@ Replace SQLite with PostgreSQL — only `database.js` needs to change.
 Replace the local `uploads/` folder with Azure Blob Storage.
 
 ---
+
+## Backup Notes
+
+- `scripts/skills-backup.json` now stores full skill data, including `verified`, `pairs_with`, `downloads`, timestamps, and attachment content
+- `node scripts/backup.js` downloads a full backup from the live backend admin endpoint
+- `node scripts/restore.js` is now an emergency fallback that posts the saved backup back to the live backend if its DB is empty
 
 ## Troubleshooting
 

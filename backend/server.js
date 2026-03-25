@@ -7,6 +7,7 @@ const fs = require("fs");
 const archiver = require("archiver");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { queries } = require("./database");
+const { buildBackupPayload, createBackup, restoreBackupPayload, restoreLatestBackupIfNeeded } = require("./backupService");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -34,16 +35,6 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    const validExt = file.originalname.endsWith(".md") || file.originalname.endsWith(".skill");
-    const validMime = ["text/markdown", "text/plain", "application/octet-stream"].includes(file.mimetype);
-    if (validExt || validMime) { cb(null, true); } else { cb(new Error("Only .md and .skill files are allowed"), false); }
-  },
-  limits: { fileSize: 5 * 1024 * 1024 },
-});
-
 const uploadWithAttachments = multer({
   storage,
   fileFilter: (req, file, cb) => {
@@ -68,6 +59,16 @@ function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set in .env");
   return new GoogleGenerativeAI(apiKey);
+}
+
+async function runBackupSafely(reason) {
+  try {
+    const result = await createBackup(reason);
+    const syncNote = result.synced ? " + GitHub synced" : "";
+    console.log(`Backup saved after ${reason} (${result.skills} skills${syncNote})`);
+  } catch (error) {
+    console.error(`Backup failed after ${reason}:`, error.message);
+  }
 }
 
 // ── Public Routes ─────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ app.post("/api/skills", uploadWithAttachments.fields([{ name: "file", maxCount: 
       const content = fs.readFileSync(att.path);
       queries.insertAttachment.run({ skill_id: skillId, filename: att.originalname, file_content: content, file_size: att.size });
     }
+    void runBackupSafely(`upload:${skillId}`);
     res.status(201).json({ message: "Skill uploaded successfully — pending review", id: skillId });
   } catch (err) { res.status(500).json({ error: err.message || "Failed to upload skill" }); }
 });
@@ -160,6 +162,7 @@ app.get("/api/skills/:id/attachments", (req, res) => {
 app.delete("/api/skills/:skillId/attachments/:attId", adminAuth, (req, res) => {
   try {
     queries.deleteAttachment.run(req.params.attId, req.params.skillId);
+    void runBackupSafely(`attachment-delete:${req.params.skillId}:${req.params.attId}`);
     res.json({ message: "Attachment deleted" });
   } catch (err) { res.status(500).json({ error: "Failed to delete attachment" }); }
 });
@@ -170,6 +173,7 @@ app.delete("/api/skills/:id", adminAuth, (req, res) => {
     if (!skill) return res.status(404).json({ error: "Skill not found" });
     if (fs.existsSync(skill.file_path)) fs.unlinkSync(skill.file_path);
     queries.deleteSkill.run(req.params.id);
+    void runBackupSafely(`skill-delete:${req.params.id}`);
     res.json({ message: "Skill deleted" });
   } catch (err) { res.status(500).json({ error: "Failed to delete skill" }); }
 });
@@ -188,6 +192,7 @@ app.get("/api/admin/pending", adminAuth, (req, res) => {
 app.post("/api/admin/verify/:id", adminAuth, (req, res) => {
   try {
     queries.verifySkill.run(req.params.id);
+    void runBackupSafely(`verify:${req.params.id}`);
     res.json({ message: "Skill verified" });
   } catch (err) { res.status(500).json({ error: "Failed to verify skill" }); }
 });
@@ -195,6 +200,7 @@ app.post("/api/admin/verify/:id", adminAuth, (req, res) => {
 app.post("/api/admin/unverify/:id", adminAuth, (req, res) => {
   try {
     queries.unverifySkill.run(req.params.id);
+    void runBackupSafely(`unverify:${req.params.id}`);
     res.json({ message: "Skill unverified" });
   } catch (err) { res.status(500).json({ error: "Failed to unverify skill" }); }
 });
@@ -203,8 +209,32 @@ app.patch("/api/admin/pairs/:id", adminAuth, (req, res) => {
   try {
     const { pairs_with } = req.body;
     queries.updatePairsWith.run(JSON.stringify(pairs_with || []), req.params.id);
+    void runBackupSafely(`pairs:${req.params.id}`);
     res.json({ message: "Pairs updated" });
   } catch (err) { res.status(500).json({ error: "Failed to update pairs" }); }
+});
+
+app.get("/api/admin/backup", adminAuth, (req, res) => {
+  try {
+    res.json(buildBackupPayload());
+  } catch (err) {
+    res.status(500).json({ error: "Failed to build backup" });
+  }
+});
+
+app.post("/api/admin/restore", adminAuth, (req, res) => {
+  try {
+    const existingCount = queries.countSkills.get().count;
+    if (existingCount > 0) {
+      return res.status(409).json({ error: "Restore is only allowed when the database is empty" });
+    }
+
+    const result = restoreBackupPayload(req.body, UPLOADS_DIR);
+    void runBackupSafely("admin-restore");
+    res.json({ message: "Backup restored", ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to restore backup" });
+  }
 });
 
 app.post("/api/admin/login", (req, res) => {
@@ -287,4 +317,18 @@ Return ONLY valid JSON, no markdown, no extra text.`;
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
-app.listen(PORT, () => { console.log(`\n✅ Skills Hub API running at http://localhost:${PORT}\n`); });
+async function startServer() {
+  const restoreResult = await restoreLatestBackupIfNeeded(UPLOADS_DIR);
+  if (restoreResult.restored) {
+    console.log(`Restored ${restoreResult.count} skill(s) from ${restoreResult.source} backup`);
+  } else if (restoreResult.source === "none") {
+    console.log("No backup found for startup restore");
+  }
+
+  app.listen(PORT, () => { console.log(`\n✅ Skills Hub API running at http://localhost:${PORT}\n`); });
+}
+
+startServer().catch((error) => {
+  console.error("Failed to start Skills Hub API:", error.message);
+  process.exit(1);
+});

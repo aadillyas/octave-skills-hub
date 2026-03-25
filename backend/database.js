@@ -39,6 +39,8 @@ try { db.exec(`ALTER TABLE skills ADD COLUMN verified INTEGER DEFAULT 0`); } cat
 try { db.exec(`ALTER TABLE skills ADD COLUMN pairs_with TEXT DEFAULT '[]'`); } catch(e) {}
 
 const queries = {
+  countSkills: db.prepare(`SELECT COUNT(*) AS count FROM skills`),
+
   getAllSkills: db.prepare(`
     SELECT id, name, author, description, tags, filename, created_at, downloads, verified, pairs_with
     FROM skills ORDER BY verified DESC, created_at DESC
@@ -53,9 +55,19 @@ const queries = {
 
   getSkillById: db.prepare(`SELECT * FROM skills WHERE id = ?`),
 
+  getAllSkillsForBackup: db.prepare(`
+    SELECT id, name, author, description, tags, filename, file_path, file_content, created_at, downloads, verified, pairs_with
+    FROM skills ORDER BY id ASC
+  `),
+
   insertSkill: db.prepare(`
     INSERT INTO skills (name, author, description, tags, filename, file_path, file_content, verified, pairs_with)
     VALUES (@name, @author, @description, @tags, @filename, @file_path, @file_content, @verified, @pairs_with)
+  `),
+
+  insertSkillFromBackup: db.prepare(`
+    INSERT INTO skills (id, name, author, description, tags, filename, file_path, file_content, created_at, downloads, verified, pairs_with)
+    VALUES (@id, @name, @author, @description, @tags, @filename, @file_path, @file_content, @created_at, @downloads, @verified, @pairs_with)
   `),
 
   incrementDownloads: db.prepare(`UPDATE skills SET downloads = downloads + 1 WHERE id = ?`),
@@ -87,6 +99,16 @@ const queries = {
 
   getAttachmentsWithContentBySkillId: db.prepare(`
     SELECT id, filename, file_content, file_size FROM skill_attachments WHERE skill_id = ?
+  `),
+
+  getAllAttachmentsForBackup: db.prepare(`
+    SELECT id, skill_id, filename, file_content, file_size, created_at
+    FROM skill_attachments ORDER BY skill_id ASC, id ASC
+  `),
+
+  insertAttachmentFromBackup: db.prepare(`
+    INSERT INTO skill_attachments (id, skill_id, filename, file_content, file_size, created_at)
+    VALUES (@id, @skill_id, @filename, @file_content, @file_size, @created_at)
   `),
 
   getAttachmentContentById: db.prepare(`
