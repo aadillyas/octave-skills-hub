@@ -5,11 +5,23 @@
   align-items: start;
 }
 
+@media (max-width: 960px) {
+  .match-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .match-form {
   padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .match-form {
+    padding: 20px;
+  }
 }
 
 .match-textarea {
@@ -153,11 +165,27 @@
   gap: 12px;
 }
 
+@media (max-width: 640px) {
+  .match-card-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .match-dl-btn {
+    align-self: flex-end;
+  }
+}
+
 .match-card-header {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   flex: 1;
+}
+
+@media (max-width: 400px) {
+  .match-card-header {
+    gap: 10px;
+  }
 }
 
 .match-card-name {

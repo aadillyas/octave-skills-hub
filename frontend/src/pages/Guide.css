@@ -5,6 +5,15 @@
   align-items: start;
 }
 
+@media (max-width: 900px) {
+  .guide-layout {
+    grid-template-columns: 1fr;
+  }
+  .guide-toc {
+    display: none;
+  }
+}
+
 .guide-content {
   display: flex;
   flex-direction: column;
@@ -13,6 +22,12 @@
 
 .guide-section {
   padding: 32px;
+}
+
+@media (max-width: 640px) {
+  .guide-section {
+    padding: 24px 20px;
+  }
 }
 
 .guide-section p {
@@ -92,7 +107,7 @@
 .file-format-table {
   border: 1px solid var(--border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
   margin: 16px 0;
   font-size: 0.825rem;
 }
@@ -101,6 +116,7 @@
   display: grid;
   grid-template-columns: 80px 1fr 1fr 1fr;
   gap: 0;
+  min-width: 500px;
 }
 
 .file-format-row > div {
@@ -187,6 +203,12 @@
 
 /* Tips grid */
 .guide-tips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+
+@media (max-width: 640px) {
+  .guide-tips-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .guide-tip { background: var(--bg); border-radius: 8px; padding: 16px; }
 .guide-tip-icon { font-size: 1.3rem; display: block; margin-bottom: 8px; }
 .guide-tip h4 { font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; }

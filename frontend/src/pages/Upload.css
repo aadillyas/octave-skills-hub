@@ -9,7 +9,20 @@
 }
 
 .upload-layout { display: grid; grid-template-columns: 1fr 300px; gap: 28px; align-items: start; }
+
+@media (max-width: 900px) {
+  .upload-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .upload-form { padding: 32px; display: flex; flex-direction: column; gap: 4px; }
+
+@media (max-width: 640px) {
+  .upload-form {
+    padding: 20px;
+  }
+}
 
 .upload-error {
   background: #fff5f5; border: 1px solid rgba(220,38,38,0.2);

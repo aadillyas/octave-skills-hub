@@ -2,6 +2,22 @@
 
 .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
 
+@media (max-width: 768px) {
+  .nav-inner { padding: 0 16px; }
+  .nav-title { font-size: 1rem; }
+}
+
+@media (max-width: 540px) {
+  .nav-title { display: none; }
+  .nav-brand { gap: 6px; }
+  .nav-link { padding: 6px 10px; font-size: 0.8rem; }
+}
+
+@media (max-width: 400px) {
+  .nav-link { padding: 6px 8px; font-size: 0.75rem; }
+  .nav-inner { height: 50px; }
+}
+
 .nav-brand { display: flex; align-items: center; gap: 10px; }
 .nav-logo { font-size: 1.4rem; color: var(--pink); line-height: 1; }
 .nav-title { font-family: var(--font-head); font-weight: 700; font-size: 1.1rem; color: var(--text); letter-spacing: -0.02em; }
